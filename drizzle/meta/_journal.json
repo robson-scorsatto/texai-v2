@@ -43,6 +43,13 @@
       "when": 1786221540874,
       "tag": "0005_groovy_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786222322714,
+      "tag": "0006_clumsy_king_bedlam",
+      "breakpoints": true
     }
   ]
 }

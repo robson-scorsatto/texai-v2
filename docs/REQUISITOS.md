@@ -149,3 +149,25 @@ Quinto módulo de negócio real, construído como extensão do Prontuário Clín
 - Sem vínculo automático entre um registro de dente e uma entrada de prontuário (`clinicalRecordId` existe no schema mas não é preenchido pela UI atual) — registrar um procedimento no odontograma e documentá-lo na timeline do prontuário são hoje duas ações manuais separadas.
 - Sem teste E2E de navegador para o clique no dente / formulário de novo registro (mesma lacuna estrutural documentada nos sprints anteriores).
 - Mesma pendência operacional dos Sprints 7-9 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.
+
+## Sprint 11 — Módulo WhatsApp / Automações
+
+Sexto módulo de negócio real. **Decisão explícita de escopo, confirmada com Robson antes de iniciar**: a entrega de mensagens é simulada (mock provider) nesta sprint — o sandbox não tem acesso de rede externo para nenhum provedor real, e a escolha entre Evolution API (usada pela plataforma legada, ver Auditoria 01 seção 2) e a Meta Cloud API (oficial) é uma decisão de negócio que ainda não foi tomada. Toda a arquitetura ao redor (schema, service layer, UI, log de auditoria) é real e desenhada para produção — trocar o provedor depois significa implementar `MessageProvider` com um provedor real, sem tocar em nenhuma outra camada. Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, roadmap de sprints.
+
+| # | Requisito | Implementação | Status | Teste |
+|---|---|---|---|---|
+| 1 | Schema (tenant-scoped) | `src/db/schema/messaging.ts` — `message_templates` (corpo com variáveis `{{nome}}` etc.), `reminder_rules` (gatilho + deslocamento em minutos + template), `outbound_messages` (log append-only de toda tentativa de envio, com `providerMessageId`/`errorMessage`) | ✅ Feito | Migration `drizzle/0006_clumsy_king_bedlam.sql` aplicada com sucesso |
+| 2 | Provider adapter substituível | `src/lib/messaging/providers/message-provider.ts` (interface `MessageProvider`) + `mock-provider.ts` (`MockWhatsAppProvider` — não envia nada de verdade, só loga no console e sempre retorna sucesso determinístico) | ✅ Feito | Confirmado nos testes: mensagens simuladas aparecem no log de saída dos testes (`[MockWhatsAppProvider] Would send to...`) |
+| 3 | Service layer tenant-safe | `src/lib/messaging/messaging-service.ts` — `listTemplates`/`upsertTemplate`, `listReminderRules`/`upsertReminderRule` (valida `templateId` pertence à clínica), `renderTemplate` (substitui variáveis, deixa desconhecidas intactas em vez de apagar silenciosamente), `sendMessage` (valida paciente/agendamento/template da mesma clínica, chama o provider, grava o log mesmo em caso de falha), `listOutboundMessages` | ✅ Feito | `tests/messaging.test.ts` — blocos "template rendering", "service layer CRUD" e "sending (mocked) and logging" (7 casos) |
+| 4 | Server actions + gates de módulo/permissão | `src/app/actions/messaging-actions.ts` — `requireModule('WHATSAPP')` + reaproveita `requirePermission('settings.view'/'settings.manage')` em vez de criar permissões novas (templates/regras são configuração de clínica) | ✅ Feito | `tests/messaging.test.ts` — blocos "cross-tenant isolation" e "RBAC enforcement" |
+| 5 | UI — configuração + histórico | Nova página `/automacoes`: gestão de templates, gestão de regras de lembrete, histórico de mensagens simuladas com status; aviso visível de "modo de desenvolvimento" no topo da página; link no `/dashboard` quando o módulo está habilitado | ✅ Feito | Verificado via `next build`; sem E2E de navegador nesta sessão |
+| 6 | Seed de templates/regras/mensagens fictícias | `src/db/seed.ts` — 2 templates (confirmação, lembrete 24h), 1 regra de lembrete, 1 mensagem fictícia já "enviada" (simulada) no histórico, `isDevSeedData: true`, idempotente | ✅ Feito | `npm run db:seed` executado com sucesso; verificado manualmente (2 templates, 1 regra, 1 mensagem) |
+| 7 | Testes — render, envio mock, permissões, cross-tenant | `tests/messaging.test.ts` (12 casos) | ✅ Feito | 85/85 testes passando no total (`npm run test`) |
+
+### Pendências conhecidas do Sprint 11 — leitura obrigatória antes de qualquer uso em produção
+
+- **Nenhuma mensagem é realmente enviada.** `MockWhatsAppProvider` é o único provider implementado; até uma integração real (Evolution API ou Meta Cloud API) ser conectada, este módulo é uma demonstração funcional da arquitetura, não um canal de comunicação real com pacientes.
+- Disparo automático de lembretes (cron/job que lê `reminder_rules` e chama `sendMessage` sozinho, sem ação manual) não foi implementado — hoje `sendMessage` só é chamado explicitamente; o "motor" de automação fica para sprint futura, depois que o provedor real for decidido.
+- Sem suporte a outros canais (SMS, e-mail) — `channel` já existe no schema como campo mas só `"whatsapp"` está implementado.
+- Sem teste E2E de navegador para os formulários de template/regra (mesma lacuna estrutural documentada nos sprints anteriores).
+- Mesma pendência operacional dos Sprints 7-10 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.

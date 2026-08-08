@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "./client";
-import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords, financialEntries, dentalCharts, toothRecords } from "./schema";
+import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords, financialEntries, dentalCharts, toothRecords, messageTemplates, reminderRules, outboundMessages } from "./schema";
 import { ALL_PERMISSIONS } from "./seed-data/permissions";
 import { MODULE_CATALOG } from "./seed-data/modules";
 import { ROLE_PERMISSION_KEYS } from "./seed-data/roles";
@@ -489,6 +489,90 @@ async function main() {
           procedureNote: ftr.procedureNote,
           authorUserId: profIngrid,
           isDevSeedData: true,
+        });
+      }
+    }
+  }
+
+  console.log("→ Seeding fictitious messaging templates, rules and log (isDevSeedData = true)...");
+  {
+    let [confirmTemplate] = await db
+      .select()
+      .from(messageTemplates)
+      .where(and(eq(messageTemplates.clinicId, clinic.id), eq(messageTemplates.key, "confirmacao_agendamento")))
+      .limit(1);
+    if (!confirmTemplate) {
+      [confirmTemplate] = await db
+        .insert(messageTemplates)
+        .values({
+          clinicId: clinic.id,
+          key: "confirmacao_agendamento",
+          bodyTemplate:
+            "Olá {{nome}}! Seu agendamento na {{clinica}} foi confirmado para {{data}} às {{hora}} com {{profissional}}.",
+          isActive: true,
+          isDevSeedData: true,
+          createdByUserId: admin.id,
+        })
+        .returning();
+    }
+
+    let [reminderTemplate] = await db
+      .select()
+      .from(messageTemplates)
+      .where(and(eq(messageTemplates.clinicId, clinic.id), eq(messageTemplates.key, "lembrete_24h")))
+      .limit(1);
+    if (!reminderTemplate) {
+      [reminderTemplate] = await db
+        .insert(messageTemplates)
+        .values({
+          clinicId: clinic.id,
+          key: "lembrete_24h",
+          bodyTemplate: "Oi {{nome}}, lembrando do seu horário amanhã ({{data}} às {{hora}}) na {{clinica}}. Até lá!",
+          isActive: true,
+          isDevSeedData: true,
+          createdByUserId: admin.id,
+        })
+        .returning();
+    }
+
+    const [existingRule] = await db
+      .select({ id: reminderRules.id })
+      .from(reminderRules)
+      .where(and(eq(reminderRules.clinicId, clinic.id), eq(reminderRules.templateId, reminderTemplate.id)))
+      .limit(1);
+    if (!existingRule) {
+      await db.insert(reminderRules).values({
+        clinicId: clinic.id,
+        triggerType: "appointment_reminder",
+        offsetMinutes: -1440,
+        templateId: reminderTemplate.id,
+        isActive: true,
+        isDevSeedData: true,
+      });
+    }
+
+    const anaId = patientByName("Ana Beatriz Souza (dev)");
+    if (anaId) {
+      const [existingMessage] = await db
+        .select({ id: outboundMessages.id })
+        .from(outboundMessages)
+        .where(and(eq(outboundMessages.clinicId, clinic.id), eq(outboundMessages.patientId, anaId)))
+        .limit(1);
+      if (!existingMessage) {
+        const renderedBody =
+          "Olá Ana Beatriz Souza (dev)! Seu agendamento na Clínica Modelo TEXAI (dev) foi confirmado para amanhã às 09:00 com Dra. Ingrid Modelo (dev).";
+        await db.insert(outboundMessages).values({
+          clinicId: clinic.id,
+          patientId: anaId,
+          templateId: confirmTemplate.id,
+          channel: "whatsapp",
+          toAddress: "11988887001",
+          body: renderedBody,
+          status: "sent",
+          providerMessageId: "mock_seed_" + Math.random().toString(36).slice(2, 10),
+          sentAt: new Date(),
+          isDevSeedData: true,
+          createdByUserId: admin.id,
         });
       }
     }
