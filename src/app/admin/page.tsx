@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/auth-service";
 import { listAllClinics, listPrivateBetaAllowlist } from "@/lib/platform-admin/platform-admin-service";
+import { listAllPlansForAdmin } from "@/lib/billing/billing-service";
 import { Card } from "@/components/ui/card";
 import { logoutAction } from "@/app/actions/auth-actions";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,11 @@ export default async function AdminPage() {
   if (!current) redirect("/login");
   if (!current.user.isPlatformAdmin) redirect("/select-clinic");
 
-  const [clinicsList, betaUsers] = await Promise.all([listAllClinics(), listPrivateBetaAllowlist()]);
+  const [clinicsList, betaUsers, allPlans] = await Promise.all([
+    listAllClinics(),
+    listPrivateBetaAllowlist(),
+    listAllPlansForAdmin(),
+  ]);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -39,7 +44,7 @@ export default async function AdminPage() {
           <h2 className="mb-4 text-sm font-medium text-gray-900">
             Clínicas cadastradas ({clinicsList.length})
           </h2>
-          <AdminClinicsTable initialClinics={clinicsList} />
+          <AdminClinicsTable initialClinics={clinicsList} allPlans={allPlans} />
         </Card>
 
         <Card>

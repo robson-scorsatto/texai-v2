@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "./client";
-import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords, financialEntries, dentalCharts, toothRecords, messageTemplates, reminderRules, outboundMessages, services } from "./schema";
+import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords, financialEntries, dentalCharts, toothRecords, messageTemplates, reminderRules, outboundMessages, services, plans, planModules, subscriptions } from "./schema";
 import { ALL_PERMISSIONS } from "./seed-data/permissions";
 import { MODULE_CATALOG } from "./seed-data/modules";
 import { ROLE_PERMISSION_KEYS } from "./seed-data/roles";
@@ -603,6 +603,109 @@ async function main() {
         isDevSeedData: true,
         createdByUserId: admin.id,
       });
+    }
+  }
+
+  console.log("→ Seeding plan catalog (Básico, Profissional, Enterprise)...");
+  {
+    const allModules = await db.select().from(modules);
+    const moduleByKey = new Map(allModules.map((m) => [m.key, m]));
+
+    const planDefs: Array<{
+      key: string;
+      name: string;
+      description: string;
+      priceCents: number | null;
+      maxUsers: number | null;
+      moduleKeys: string[];
+    }> = [
+      {
+        key: "basico",
+        name: "Básico",
+        description: "Ideal para consultórios individuais começando a organizar o dia a dia.",
+        priceCents: 9700,
+        maxUsers: 3,
+        moduleKeys: ["CORE", "PATIENTS", "AGENDA"],
+      },
+      {
+        key: "profissional",
+        name: "Profissional",
+        description: "Para clínicas em crescimento que precisam de prontuário, financeiro e automações.",
+        priceCents: 29700,
+        maxUsers: 10,
+        moduleKeys: [
+          "CORE",
+          "PATIENTS",
+          "AGENDA",
+          "CLINICAL_RECORD",
+          "DENTAL",
+          "FINANCE",
+          "WHATSAPP",
+          "AUTOMATIONS",
+        ],
+      },
+      {
+        key: "enterprise",
+        name: "Enterprise",
+        description: "Para redes de clínicas com necessidades personalizadas — condições sob consulta.",
+        priceCents: null,
+        maxUsers: null,
+        moduleKeys: MODULE_CATALOG.map((m) => m.key),
+      },
+    ];
+
+    for (const def of planDefs) {
+      let [plan] = await db.select().from(plans).where(eq(plans.key, def.key)).limit(1);
+      if (!plan) {
+        [plan] = await db
+          .insert(plans)
+          .values({
+            key: def.key,
+            name: def.name,
+            description: def.description,
+            priceCents: def.priceCents,
+            billingInterval: "monthly",
+            maxUsers: def.maxUsers,
+            isActive: true,
+          })
+          .returning();
+      }
+
+      for (const moduleKey of def.moduleKeys) {
+        const mod = moduleByKey.get(moduleKey);
+        if (!mod) continue;
+        const [existingLink] = await db
+          .select({ id: planModules.id })
+          .from(planModules)
+          .where(and(eq(planModules.planId, plan.id), eq(planModules.moduleId, mod.id)))
+          .limit(1);
+        if (!existingLink) {
+          await db.insert(planModules).values({ planId: plan.id, moduleId: mod.id });
+        }
+      }
+    }
+  }
+
+  console.log("→ Seeding fictitious subscription for the dev clinic (Profissional, trialing)...");
+  {
+    const [profissional] = await db.select().from(plans).where(eq(plans.key, "profissional")).limit(1);
+    if (profissional) {
+      const [existingSub] = await db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(eq(subscriptions.clinicId, clinic.id))
+        .limit(1);
+      if (!existingSub) {
+        const trialEndsAt = new Date();
+        trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+        await db.insert(subscriptions).values({
+          clinicId: clinic.id,
+          planId: profissional.id,
+          status: "trialing",
+          trialEndsAt,
+          isDevSeedData: true,
+        });
+      }
     }
   }
 

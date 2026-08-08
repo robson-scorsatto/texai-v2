@@ -12,3 +12,4 @@ export * from "./financial-entries";
 export * from "./dental-charts";
 export * from "./messaging";
 export * from "./services";
+export * from "./billing";

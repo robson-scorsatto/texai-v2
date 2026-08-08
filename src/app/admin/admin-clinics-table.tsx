@@ -5,9 +5,12 @@ import type { ClinicSummary } from "@/lib/platform-admin/platform-admin-service"
 import type { ClinicModuleStatus } from "@/lib/platform-admin/platform-admin-service";
 import { listClinicModulesAction, toggleClinicModuleAction } from "@/app/actions/platform-admin-actions";
 import { Button } from "@/components/ui/button";
+import { AdminClinicPlan } from "./admin-clinic-plan";
+import type { Plan } from "@/db/schema";
 
-export function AdminClinicsTable({ initialClinics }: { initialClinics: ClinicSummary[] }) {
+export function AdminClinicsTable({ initialClinics, allPlans }: { initialClinics: ClinicSummary[]; allPlans: Plan[] }) {
   const [expandedClinicId, setExpandedClinicId] = useState<string | null>(null);
+  const [expandedPlanClinicId, setExpandedPlanClinicId] = useState<string | null>(null);
   const [modulesByClinic, setModulesByClinic] = useState<Record<string, ClinicModuleStatus[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +31,10 @@ export function AdminClinicsTable({ initialClinics }: { initialClinics: ClinicSu
       }
       setModulesByClinic((prev) => ({ ...prev, [clinicId]: result.data }));
     }
+  }
+
+  function togglePlanExpand(clinicId: string) {
+    setExpandedPlanClinicId((prev) => (prev === clinicId ? null : clinicId));
   }
 
   async function handleToggleModule(clinicId: string, moduleKey: string, currentlyEnabled: boolean) {
@@ -73,6 +80,9 @@ export function AdminClinicsTable({ initialClinics }: { initialClinics: ClinicSu
                 <td className="py-2 text-gray-500">{c.patientCount}</td>
                 <td className="py-2 text-gray-400">{c.isDevSeedData ? "sim" : "não"}</td>
                 <td className="py-2 text-right">
+                  <Button type="button" variant="secondary" onClick={() => togglePlanExpand(c.id)}>
+                    {expandedPlanClinicId === c.id ? "Fechar" : "Plano"}
+                  </Button>{" "}
                   <Button type="button" variant="secondary" onClick={() => toggleExpand(c.id)}>
                     {expandedClinicId === c.id ? "Fechar" : "Módulos"}
                   </Button>
@@ -102,6 +112,13 @@ export function AdminClinicsTable({ initialClinics }: { initialClinics: ClinicSu
                         ))}
                       </div>
                     )}
+                  </td>
+                </tr>
+              )}
+              {expandedPlanClinicId === c.id && (
+                <tr key={`${c.id}-plan`} className="border-b border-gray-100 bg-gray-50">
+                  <td colSpan={7} className="py-3">
+                    <AdminClinicPlan clinicId={c.id} allPlans={allPlans} />
                   </td>
                 </tr>
               )}
