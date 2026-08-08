@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "./client";
-import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords, financialEntries } from "./schema";
+import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords, financialEntries, dentalCharts, toothRecords } from "./schema";
 import { ALL_PERMISSIONS } from "./seed-data/permissions";
 import { MODULE_CATALOG } from "./seed-data/modules";
 import { ROLE_PERMISSION_KEYS } from "./seed-data/roles";
@@ -441,6 +441,56 @@ async function main() {
         isDevSeedData: true,
         createdByUserId: admin.id,
       });
+    }
+  }
+
+  console.log("→ Seeding fictitious dental chart records (isDevSeedData = true)...");
+  if (profIngrid) {
+    const anaId = patientByName("Ana Beatriz Souza (dev)");
+
+    if (anaId) {
+      let [chart] = await db
+        .select()
+        .from(dentalCharts)
+        .where(and(eq(dentalCharts.patientId, anaId), eq(dentalCharts.clinicId, clinic.id)))
+        .limit(1);
+      if (!chart) {
+        [chart] = await db
+          .insert(dentalCharts)
+          .values({ clinicId: clinic.id, patientId: anaId, dentitionType: "permanente" })
+          .returning();
+      }
+
+      const fakeToothRecords: Array<{ toothNumber: number; status: string; procedureNote: string | null }> = [
+        { toothNumber: 16, status: "restaurado", procedureNote: "Restauração fictícia de desenvolvimento." },
+        { toothNumber: 26, status: "cariado", procedureNote: "Cárie fictícia de desenvolvimento — aguardando tratamento." },
+        { toothNumber: 11, status: "saudavel", procedureNote: null },
+      ];
+
+      for (const ftr of fakeToothRecords) {
+        const [existing] = await db
+          .select({ id: toothRecords.id })
+          .from(toothRecords)
+          .where(
+            and(
+              eq(toothRecords.dentalChartId, chart.id),
+              eq(toothRecords.toothNumber, ftr.toothNumber),
+              eq(toothRecords.status, ftr.status)
+            )
+          )
+          .limit(1);
+        if (existing) continue;
+
+        await db.insert(toothRecords).values({
+          clinicId: clinic.id,
+          dentalChartId: chart.id,
+          toothNumber: ftr.toothNumber,
+          status: ftr.status,
+          procedureNote: ftr.procedureNote,
+          authorUserId: profIngrid,
+          isDevSeedData: true,
+        });
+      }
     }
   }
 

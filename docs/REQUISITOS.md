@@ -129,3 +129,23 @@ Quarto módulo de negócio real, fechando o tripé Pacientes + Agenda + Financei
 - Despesas da clínica (`type: "despesa"`) já têm suporte no schema e no service layer, mas a UI construída nesta sprint só expõe o fluxo de receita por paciente — tela dedicada a despesas fica para sprint futura.
 - Sem teste E2E de navegador para os formulários de novo lançamento/marcar pago (mesma lacuna estrutural documentada nos Sprints 0, 6, 7 e 8).
 - Mesma pendência operacional dos Sprints 7 e 8 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.
+
+## Sprint 10 — Módulo Odontograma
+
+Quinto módulo de negócio real, construído como extensão do Prontuário Clínico (Sprint 8) em vez de sistema paralelo — reaproveita as permissões `clinical_record.view/edit`. Funcionalidade identificada na Auditoria 01 (seção 3.2) como um dos pontos fortes da plataforma legada. Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, roadmap de sprints.
+
+| # | Requisito | Implementação | Status | Teste |
+|---|---|---|---|---|
+| 1 | Schema de Odontograma (tenant-scoped) | `src/db/schema/dental-charts.ts` — `dentalCharts` (1 registro por paciente, `dentitionType` permanente/decíduo, constraint unique em `patientId`) + `toothRecords` (histórico de procedimentos por dente, notação FDI, `status`, vínculo opcional a `clinical_records`), índices apropriados | ✅ Feito | Migration `drizzle/0005_groovy_karnak.sql` aplicada com sucesso |
+| 2 | Service layer tenant-safe | `src/lib/dental/dental-service.ts` — `getOrCreateDentalChart` (cria sob demanda), `listToothRecords`, `addToothRecord` (valida número de dente na notação FDI), `getCurrentToothStatuses` (reduz o histórico ao status mais recente por dente para renderizar a arcada). Toda operação resolve `clinicId` via `resolveTenantContext()` e valida `patientId` pertence à clínica | ✅ Feito | `tests/dental.test.ts` — bloco "service layer CRUD" (5 casos) |
+| 3 | Server actions + gates de módulo/permissão | `src/app/actions/dental-actions.ts` — `requireModule('DENTAL')` + reaproveita `requirePermission('clinical_record.view/edit')` em vez de criar permissões `dental.*` novas, já que um registro de dente é conceitualmente um registro clínico | ✅ Feito | `tests/dental.test.ts` — blocos "cross-tenant isolation" e "RBAC enforcement" |
+| 4 | UI — nova aba Odontograma na ficha do paciente | Aba "Odontograma" em `/patients/[id]` com arcada visual simplificada (32 dentes permanentes, notação FDI, cores por status), clique no dente abre histórico + formulário de novo registro | ✅ Feito | Verificado via `next build`; sem E2E de navegador nesta sessão |
+| 5 | Seed de registros fictícios | `src/db/seed.ts` — 1 dental chart + 3 registros de dente fictícios (restaurado, cariado, saudável) para uma paciente já semeada, `isDevSeedData: true`, idempotente | ✅ Feito | `npm run db:seed` executado com sucesso; verificado manualmente que os registros existem e só na clínica de dev |
+| 6 | Testes — CRUD, permissões, cross-tenant | `tests/dental.test.ts` (10 casos) | ✅ Feito | 73/73 testes passando no total (`npm run test`) |
+
+### Pendências conhecidas do Sprint 10
+
+- Só dentição permanente tem UI dedicada nesta sprint — dentição decídua (infantil) já tem suporte no schema (`dentitionType`) mas sem seletor visual ainda; fica para sprint futura se/quando pediatria for priorizada.
+- Sem vínculo automático entre um registro de dente e uma entrada de prontuário (`clinicalRecordId` existe no schema mas não é preenchido pela UI atual) — registrar um procedimento no odontograma e documentá-lo na timeline do prontuário são hoje duas ações manuais separadas.
+- Sem teste E2E de navegador para o clique no dente / formulário de novo registro (mesma lacuna estrutural documentada nos sprints anteriores).
+- Mesma pendência operacional dos Sprints 7-9 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.

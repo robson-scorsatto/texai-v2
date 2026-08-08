@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Patient, ClinicalRecord, FinancialEntry } from "@/db/schema";
+import type { Patient, ClinicalRecord, FinancialEntry, ToothRecord } from "@/db/schema";
 import {
   updatePatientAction,
   deactivatePatientAction,
@@ -14,10 +14,12 @@ import { Input } from "@/components/ui/input";
 import { clsx } from "@/lib/clsx";
 import { ClinicalRecordsTab } from "./clinical-records-tab";
 import { FinanceTab } from "./finance-tab";
+import { DentalTab } from "./dental-tab";
 
 const TABS = [
   { key: "dados", label: "Dados" },
   { key: "prontuario", label: "Prontuário" },
+  { key: "odontograma", label: "Odontograma" },
   { key: "financeiro", label: "Financeiro" },
 ] as const;
 
@@ -38,6 +40,10 @@ export function PatientDetailClient({
   canEditFinance,
   canDeleteFinance,
   initialFinancialEntries,
+  dentalModuleEnabled,
+  canViewDental,
+  canEditDental,
+  initialToothRecords,
 }: {
   patient: Patient;
   canEdit: boolean;
@@ -53,6 +59,10 @@ export function PatientDetailClient({
   canEditFinance: boolean;
   canDeleteFinance: boolean;
   initialFinancialEntries: FinancialEntry[];
+  dentalModuleEnabled: boolean;
+  canViewDental: boolean;
+  canEditDental: boolean;
+  initialToothRecords: ToothRecord[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("dados");
@@ -136,6 +146,24 @@ export function PatientDetailClient({
               canSign={canSignRecords}
               initialRecords={initialClinicalRecords}
             />
+          )}
+        </>
+      )}
+
+      {tab === "odontograma" && (
+        <>
+          {!dentalModuleEnabled ? (
+            <Card>
+              <p className="text-sm text-gray-500">
+                O módulo Odontograma não está habilitado para esta clínica.
+              </p>
+            </Card>
+          ) : !canViewDental ? (
+            <Card>
+              <p className="text-sm text-gray-500">Você não tem permissão para ver o odontograma.</p>
+            </Card>
+          ) : (
+            <DentalTab patientId={patient.id} canEdit={canEditDental} initialRecords={initialToothRecords} />
           )}
         </>
       )}

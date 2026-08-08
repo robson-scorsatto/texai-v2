@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { getPatient } from "@/lib/patients/patients-service";
 import { listClinicalRecords } from "@/lib/clinical-records/clinical-records-service";
 import { listFinancialEntries } from "@/lib/finance/finance-service";
+import { listToothRecords } from "@/lib/dental/dental-service";
 import { Card } from "@/components/ui/card";
 import { PatientDetailClient } from "./patient-detail-client";
 
@@ -80,6 +81,11 @@ export default async function PatientDetailPage({
   const financialEntries =
     financeModuleEnabled && canViewFinance ? await listFinancialEntries({ patientId: patient.id }) : [];
 
+  const dentalModuleEnabled = await hasModule("DENTAL");
+  const canViewDental = dentalModuleEnabled && (await hasPermission("clinical_record.view"));
+  const canEditDental = dentalModuleEnabled && (await hasPermission("clinical_record.edit"));
+  const toothRecordsList = canViewDental ? await listToothRecords(patient.id) : [];
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-200 bg-white px-6 py-4">
@@ -110,6 +116,10 @@ export default async function PatientDetailPage({
           canEditFinance={canEditFinance}
           canDeleteFinance={canDeleteFinance}
           initialFinancialEntries={financialEntries}
+          dentalModuleEnabled={dentalModuleEnabled}
+          canViewDental={canViewDental}
+          canEditDental={canEditDental}
+          initialToothRecords={toothRecordsList}
         />
       </div>
     </main>
