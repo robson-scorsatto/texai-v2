@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { eq } from "drizzle-orm";
 import { getDb } from "./client";
-import { users, roles, permissions, rolePermissions, modules, memberships } from "./schema";
+import { users, roles, permissions, rolePermissions, modules, memberships, patients } from "./schema";
 import { ALL_PERMISSIONS } from "./seed-data/permissions";
 import { MODULE_CATALOG } from "./seed-data/modules";
 import { ROLE_PERMISSION_KEYS } from "./seed-data/roles";
@@ -21,11 +21,10 @@ import { createClinic } from "@/lib/tenant/clinics-service";
  *  - ONE development clinic (isDevSeedData = true) with all modules
  *    enabled, owned by the admin
  *  - TWO professional users linked to that clinic (PROFESSIONAL role)
- *
- * Patient records are intentionally NOT seeded here: there is no
- * `patients` table yet in Sprint 0 (it belongs to Sprint 6 — see
- * README.md, "Estado do projeto"). Faking rows into a table that
- * doesn't exist would misrepresent what's actually implemented.
+ *  - FIVE fictitious patients (isDevSeedData = true) in the dev clinic,
+ *    added in Sprint 6, clearly named/emailed with a "(dev)" suffix and
+ *    @texai.local addresses so they can never be confused with real
+ *    patient data.
  */
 async function main() {
   const db = await getDb();
@@ -128,9 +127,75 @@ async function main() {
     }
   }
 
+  console.log("→ Seeding 5 fictitious patients (isDevSeedData = true)...");
+  const fakePatients = [
+    {
+      name: "Ana Beatriz Souza (dev)",
+      phone: "11988887001",
+      email: "ana.souza.dev@texai.local",
+      cpf: "111.111.111-11",
+      birthDate: "1990-03-14",
+      notes: "Paciente fictício de desenvolvimento — não é uma pessoa real.",
+    },
+    {
+      name: "Carlos Eduardo Lima (dev)",
+      phone: "11988887002",
+      email: "carlos.lima.dev@texai.local",
+      cpf: "222.222.222-22",
+      birthDate: "1985-07-22",
+      notes: "Paciente fictício de desenvolvimento — não é uma pessoa real.",
+    },
+    {
+      name: "Fernanda Costa Ribeiro (dev)",
+      phone: "11988887003",
+      email: "fernanda.ribeiro.dev@texai.local",
+      cpf: "333.333.333-33",
+      birthDate: "2001-11-05",
+      notes: "Paciente fictício de desenvolvimento — não é uma pessoa real.",
+    },
+    {
+      name: "João Pedro Martins (dev)",
+      phone: "11988887004",
+      email: null,
+      cpf: null,
+      birthDate: "1978-01-30",
+      notes: "Paciente fictício de desenvolvimento — sem e-mail cadastrado, propositalmente, para testar campos opcionais.",
+    },
+    {
+      name: "Mariana Alves Pereira (dev)",
+      phone: "11988887005",
+      email: "mariana.pereira.dev@texai.local",
+      cpf: "555.555.555-55",
+      birthDate: "1995-09-18",
+      notes: "Paciente fictício de desenvolvimento — não é uma pessoa real.",
+    },
+  ];
+  const existingClinicPatients = await db
+    .select({ name: patients.name })
+    .from(patients)
+    .where(eq(patients.clinicId, clinic.id));
+  const existingNames = new Set(existingClinicPatients.map((p) => p.name));
+
+  for (const fp of fakePatients) {
+    if (existingNames.has(fp.name)) continue;
+    await db.insert(patients).values({
+      clinicId: clinic.id,
+      name: fp.name,
+      phone: fp.phone,
+      prefersWhatsapp: true,
+      email: fp.email,
+      cpf: fp.cpf,
+      birthDate: fp.birthDate,
+      notes: fp.notes,
+      isDevSeedData: true,
+      createdByUserId: admin.id,
+    });
+  }
+
   console.log("\n✅ Seed completo.");
   console.log(`   Admin: ${admin.email} (super administrador da plataforma)`);
   console.log(`   Clínica de dev: "${clinic.name}" (slug: ${clinic.slug})`);
+  console.log(`   Pacientes fictícios: ${fakePatients.length}`);
 }
 
 main()

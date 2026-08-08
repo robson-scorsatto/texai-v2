@@ -39,3 +39,23 @@ Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, item 63.
   profissional, etc.) ainda não existe — hoje "profissional" é só um
   `membership` com role `PROFESSIONAL`. Isso é suficiente para o Sprint
   0 mas deve ser revisitado no Sprint 7 (Agenda) / Sprint 9 (Prontuário).
+
+## Sprint 6 — Módulo Pacientes
+
+Primeiro módulo de negócio real construído sobre o núcleo do Sprint 0.
+Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, roadmap de sprints.
+
+| # | Requisito | Implementação | Status | Teste |
+|---|---|---|---|---|
+| 1 | Schema de Pacientes (tenant-scoped) | `src/db/schema/patients.ts` — `clinicId` obrigatório (FK, cascade), índices por `clinicId` e `(clinicId, name)`, soft-delete via `isActive`, marcação `isDevSeedData` | ✅ Feito | Migration `drizzle/0001_clever_pepper_potts.sql` aplicada com sucesso (`npm run db:migrate`) |
+| 2 | Service layer tenant-safe | `src/lib/patients/patients-service.ts` — `listPatients` (busca + paginação), `getPatient`, `createPatient`, `updatePatient`, `deactivatePatient`, `reactivatePatient`. Todas resolvem `clinicId` via `resolveTenantContext()`, nunca de argumento do chamador | ✅ Feito | `tests/patients.test.ts` — bloco "service layer CRUD" (5 casos) |
+| 3 | Server actions + gates de módulo/permissão | `src/app/actions/patients-actions.ts` — cada action chama `requireModule('PATIENTS')` e `requirePermission('patients.*')` antes de tocar dados; `revalidatePath` isolado em `safeRevalidate()` para nunca mascarar uma escrita bem-sucedida | ✅ Feito | `tests/patients.test.ts` — blocos "cross-tenant isolation" e "RBAC enforcement" |
+| 4 | UI — lista, criar, detalhe/editar | `/patients` (lista com busca + paginação), `/patients/new` (formulário), `/patients/[id]` (visão + edição inline, abas placeholder Prontuário/Financeiro), link de acesso no `/dashboard` quando o módulo está habilitado | ✅ Feito | Verificado via `next build` (todas as rotas compilam e pré-renderizam); sem E2E de navegador nesta sessão |
+| 5 | Seed de pacientes fictícios | `src/db/seed.ts` — 5 pacientes com sufixo "(dev)", e-mails `@texai.local`, `isDevSeedData: true`, idempotente (não duplica em reexecução) | ✅ Feito | `npm run db:seed` executado com sucesso; verificado manualmente que os 5 registros existem na clínica de dev e só nela |
+| 6 | Testes — CRUD, permissões, cross-tenant | `tests/patients.test.ts` (10 casos): CRUD completo, validação de nome vazio, filtro de inativos, busca por nome/telefone/e-mail, chamada sem tenant, isolamento cross-tenant (service e server action), bloqueio por RBAC (`patients.create`, `patients.delete`), bloqueio por módulo desabilitado | ✅ Feito | 25/25 testes passando (`npm run test`) |
+
+### Pendências conhecidas do Sprint 6
+
+- Sem teste E2E de navegador para o formulário de criação/edição de paciente (mesma lacuna estrutural documentada no Sprint 0).
+- Anamnese/prontuário clínico e financeiro por paciente permanecem como abas placeholder — implementação prevista para sprints futuros (Prontuário Clínico, Financeiro), conforme roadmap do prompt mestre.
+- Import/exportação em massa de pacientes (ex.: migração dos 672 pacientes reais mapeados na auditoria da plataforma legada) não foi implementada nesta sprint — é um pré-requisito para a migração real, não para o MVP técnico do módulo.

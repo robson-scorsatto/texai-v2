@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/auth-service";
 import { resolveTenantContext, listUserClinics } from "@/lib/tenant/resolve-tenant";
@@ -59,6 +60,18 @@ export default async function DashboardPage() {
         <p className="mb-6 text-sm text-gray-500">
           Bem-vindo(a), <strong>{current.user.name}</strong> — seu papel aqui é <strong>{role?.label}</strong>.
         </p>
+
+        {modules.includes("PATIENTS") && (
+          <Card className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-medium text-gray-900">Pacientes</h2>
+              <p className="text-xs text-gray-500">Gerencie o cadastro de pacientes da clínica.</p>
+            </div>
+            <Link href="/patients" className="text-sm font-medium text-gray-900 underline">
+              Abrir →
+            </Link>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Card>
