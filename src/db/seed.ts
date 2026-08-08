@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getDb } from "./client";
-import { users, roles, permissions, rolePermissions, modules, memberships, patients } from "./schema";
+import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments } from "./schema";
 import { ALL_PERMISSIONS } from "./seed-data/permissions";
 import { MODULE_CATALOG } from "./seed-data/modules";
 import { ROLE_PERMISSION_KEYS } from "./seed-data/roles";
@@ -115,7 +115,7 @@ async function main() {
     const [existingMembership] = await db
       .select()
       .from(memberships)
-      .where(eq(memberships.userId, profUser.id))
+      .where(and(eq(memberships.userId, profUser.id), eq(memberships.clinicId, clinic.id)))
       .limit(1);
     if (!existingMembership) {
       await db.insert(memberships).values({
@@ -190,6 +190,115 @@ async function main() {
       isDevSeedData: true,
       createdByUserId: admin.id,
     });
+  }
+
+  console.log("→ Seeding fictitious appointments (isDevSeedData = true)...");
+  // Fetch the two fictitious professionals + first two fictitious
+  // patients created above, and schedule a small mix of past/future
+  // appointments across them, tomorrow and the day after — enough to
+  // exercise the day-view UI without needing a huge dataset.
+  const devProfessionals = await db
+    .select({ userId: memberships.userId, name: users.name })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(eq(memberships.clinicId, clinic.id));
+  const professionalByEmailFragment = (fragment: string) =>
+    devProfessionals.find((p) => p.name.includes(fragment))?.userId;
+
+  const seededPatients = await db.select().from(patients).where(eq(patients.clinicId, clinic.id));
+  const patientByName = (name: string) => seededPatients.find((p) => p.name === name)?.id;
+
+  const profIngrid = professionalByEmailFragment("Ingrid");
+  const profMarcos = professionalByEmailFragment("Marcos");
+
+  function atHour(daysFromNow: number, hour: number, minute = 0) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + daysFromNow);
+    d.setUTCHours(hour, minute, 0, 0);
+    return d;
+  }
+
+  if (profIngrid && profMarcos) {
+    const fakeAppointments: Array<{
+      patientId: string | undefined;
+      professionalUserId: string;
+      type: "atendimento" | "bloqueio";
+      serviceName: string | null;
+      startsAt: Date;
+      endsAt: Date;
+      status: "scheduled" | "confirmed" | "completed";
+      notes: string | null;
+    }> = [
+      {
+        patientId: patientByName("Ana Beatriz Souza (dev)"),
+        professionalUserId: profIngrid,
+        type: "atendimento",
+        serviceName: "Consulta de rotina",
+        startsAt: atHour(1, 9, 0),
+        endsAt: atHour(1, 9, 30),
+        status: "scheduled",
+        notes: "Agendamento fictício de desenvolvimento.",
+      },
+      {
+        patientId: patientByName("Carlos Eduardo Lima (dev)"),
+        professionalUserId: profIngrid,
+        type: "atendimento",
+        serviceName: "Limpeza",
+        startsAt: atHour(1, 10, 0),
+        endsAt: atHour(1, 10, 45),
+        status: "confirmed",
+        notes: "Agendamento fictício de desenvolvimento.",
+      },
+      {
+        patientId: patientByName("Fernanda Costa Ribeiro (dev)"),
+        professionalUserId: profMarcos,
+        type: "atendimento",
+        serviceName: "Avaliação",
+        startsAt: atHour(2, 14, 0),
+        endsAt: atHour(2, 14, 30),
+        status: "scheduled",
+        notes: "Agendamento fictício de desenvolvimento.",
+      },
+      {
+        patientId: undefined,
+        professionalUserId: profMarcos,
+        type: "bloqueio",
+        serviceName: null,
+        startsAt: atHour(2, 12, 0),
+        endsAt: atHour(2, 13, 0),
+        status: "confirmed",
+        notes: "Horário de almoço (bloqueio fictício de desenvolvimento).",
+      },
+    ];
+
+    for (const fa of fakeAppointments) {
+      const [existing] = await db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.clinicId, clinic.id),
+            eq(appointments.professionalUserId, fa.professionalUserId),
+            eq(appointments.startsAt, fa.startsAt)
+          )
+        )
+        .limit(1);
+      if (existing) continue;
+
+      await db.insert(appointments).values({
+        clinicId: clinic.id,
+        patientId: fa.patientId ?? null,
+        professionalUserId: fa.professionalUserId,
+        type: fa.type,
+        serviceName: fa.serviceName,
+        startsAt: fa.startsAt,
+        endsAt: fa.endsAt,
+        status: fa.status,
+        notes: fa.notes,
+        isDevSeedData: true,
+        createdByUserId: admin.id,
+      });
+    }
   }
 
   console.log("\n✅ Seed completo.");

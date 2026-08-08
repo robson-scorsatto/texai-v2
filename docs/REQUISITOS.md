@@ -59,3 +59,32 @@ Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, roadmap de sprints.
 - Sem teste E2E de navegador para o formulário de criação/edição de paciente (mesma lacuna estrutural documentada no Sprint 0).
 - Anamnese/prontuário clínico e financeiro por paciente permanecem como abas placeholder — implementação prevista para sprints futuros (Prontuário Clínico, Financeiro), conforme roadmap do prompt mestre.
 - Import/exportação em massa de pacientes (ex.: migração dos 672 pacientes reais mapeados na auditoria da plataforma legada) não foi implementada nesta sprint — é um pré-requisito para a migração real, não para o MVP técnico do módulo.
+
+## Sprint 7 — Módulo Agenda
+
+Segundo módulo de negócio real, construído sobre o núcleo do Sprint 0 e reaproveitando o padrão de tenant-safety do módulo Pacientes (Sprint 6). Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, roadmap de sprints.
+
+| # | Requisito | Implementação | Status | Teste |
+|---|---|---|---|---|
+| 1 | Schema de Agenda (tenant-scoped) | `src/db/schema/appointments.ts` — `clinicId` obrigatório (FK, cascade), `patientId` opcional (nulo para bloqueios), `professionalUserId` obrigatório (referencia `users.id`, hoje sem entidade "profissional" dedicada), `status` (scheduled/confirmed/completed/cancelled/no_show), `type` (atendimento/bloqueio), índices por `(clinicId, startsAt)` e `(professionalUserId, startsAt)` | ✅ Feito | Migration `drizzle/0002_awesome_tony_stark.sql` aplicada com sucesso |
+| 2 | Service layer tenant-safe | `src/lib/agenda/agenda-service.ts` — `listAppointments` (por período, filtro por profissional), `getAppointment`, `createAppointment`, `updateAppointment`, `cancelAppointment`, `confirmAppointment`, `completeAppointment`, `markNoShow`, `listClinicProfessionals`. Toda operação resolve `clinicId` via `resolveTenantContext()`; `createAppointment`/`updateAppointment` validam que `patientId` e `professionalUserId` pertencem à mesma clínica antes de gravar | ✅ Feito | `tests/agenda.test.ts` — bloco "service layer CRUD" (5 casos) |
+| 3 | Detecção de conflito de horário | `hasConflict()` — impede dois agendamentos não cancelados do mesmo profissional se sobreporem (intervalo semiaberto `[starts, ends)`, permitindo agendamentos consecutivos back-to-back); verificado tanto na criação quanto na atualização de horário/profissional | ✅ Feito | `tests/agenda.test.ts` — bloco "scheduling conflict detection" (5 casos, incluindo back-to-back permitido, profissionais diferentes não conflitam, cancelado libera o horário, conflito detectado em update) |
+| 4 | Server actions + gates de módulo/permissão | `src/app/actions/agenda-actions.ts` — cada action chama `requireModule('AGENDA')` e `requirePermission('agenda.*')` antes de tocar dados | ✅ Feito | `tests/agenda.test.ts` — blocos "cross-tenant isolation" e "RBAC enforcement" |
+| 5 | UI — visão do dia, criar, ações de status | `/agenda` (visão de um dia por vez, navegação anterior/próximo, ações Confirmar/Concluir/Faltou/Cancelar por item conforme permissão), `/agenda/new` (formulário Paciente/Profissional → Data/Hora → Detalhes, com opção Atendimento ou Bloqueio), link de acesso no `/dashboard` quando o módulo está habilitado | ✅ Feito | Verificado via `next build` (todas as rotas compilam e pré-renderizam); sem E2E de navegador nesta sessão. Visão de Semana/Mês não implementada nesta sprint — ver pendências |
+| 6 | Seed de agendamentos fictícios | `src/db/seed.ts` — 4 agendamentos fictícios (3 atendimentos + 1 bloqueio) nos dois profissionais fictícios já semeados, distribuídos em datas futuras próximas, `isDevSeedData: true`, idempotente | ✅ Feito | `npm run db:seed` executado com sucesso; verificado manualmente que os 4 registros existem e só na clínica de dev |
+| 7 | Testes — CRUD, conflito, permissões, cross-tenant | `tests/agenda.test.ts` (14 casos) | ✅ Feito | 39/39 testes passando no total (`npm run test`) |
+
+### Bugs pré-existentes encontrados e corrigidos nesta sprint
+
+Ao escrever os testes de conflito de horário e o seed de agendamentos, dois problemas do Sprint 0/6 vieram à tona e foram corrigidos:
+
+- **`hasConflict()` rejeitava agendamentos consecutivos (back-to-back)**: a condição de sobreposição usava `>=` em vez de `>` no limite final do intervalo, então um agendamento que começa exatamente quando o anterior termina era tratado como conflito. Corrigido para intervalo semiaberto `[starts, ends)` — coberto pelo teste "rejects a new appointment that overlaps..." (o próprio teste pegou o bug).
+- **`src/db/seed.ts` — vínculo de profissionais fictícios não era escopado por clínica**: a checagem de "já existe membership" filtrava só por `userId`, não por `userId + clinicId`. Em bancos de dev onde o seed já havia rodado antes (criando uma segunda clínica), os profissionais fictícios não eram vinculados à nova clínica, e os agendamentos fictícios ficavam sem profissional válido para associar. Corrigido para escopar a checagem por `and(eq(userId), eq(clinicId))`.
+
+### Pendências conhecidas do Sprint 7
+
+- Visão de Semana e Mês da agenda não implementadas — MVP cobre apenas visão de Dia com navegação anterior/próximo, suficiente para validar o fluxo core de agendamento.
+- Sem teste E2E de navegador para o formulário de novo agendamento (mesma lacuna estrutural documentada nos Sprints 0 e 6).
+- `createClinic()` (Sprint 0) não deduplica por nome — reexecutar `npm run db:seed` em um banco de dev já semeado cria uma nova clínica a cada vez, em vez de reaproveitar a existente. Não é um problema de segurança (cada clínica continua isolada corretamente), mas é um incômodo operacional para quem já rodou o seed antes; recomenda-se `rm -rf .data && npm run db:migrate && npm run db:seed` para um ambiente de dev limpo. Deixado como pendência para não expandir o escopo desta sprint.
+- Catálogo de serviços (`serviceName` é hoje texto livre) e associação de agendamento a um serviço com preço/duração padrão ficam para sprint futura (Financeiro/Serviços).
+- Notificação automática de confirmação via WhatsApp (já mapeada como ponto forte da plataforma legada na Auditoria 01) ainda não está conectada — pertence ao módulo WHATSAPP/AUTOMATIONS, fora do escopo desta sprint.

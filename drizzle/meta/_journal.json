@@ -15,6 +15,13 @@
       "when": 1786214422316,
       "tag": "0001_clever_pepper_potts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786216674179,
+      "tag": "0002_awesome_tony_stark",
+      "breakpoints": true
     }
   ]
 }
