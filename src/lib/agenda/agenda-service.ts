@@ -5,6 +5,7 @@ import {
   patients,
   memberships,
   users,
+  services,
   type Appointment,
   type NewAppointment,
   type AppointmentStatus,
@@ -26,6 +27,10 @@ export type CreateAppointmentInput = {
   patientId?: string | null; // null/undefined only allowed when type === "bloqueio"
   professionalUserId: string;
   type?: AppointmentType;
+  // Optional link to the service catalog (Sprint 12). If serviceName is
+  // NOT explicitly provided, it's derived from services.name — pass
+  // serviceName to override the display text without changing the link.
+  serviceId?: string | null;
   serviceName?: string | null;
   startsAt: string; // ISO datetime
   endsAt: string; // ISO datetime
@@ -56,6 +61,16 @@ async function requireTenant() {
 }
 
 /** Verifies a patientId belongs to the current tenant. Throws otherwise. */
+async function getServiceInTenant(db: Awaited<ReturnType<typeof getDb>>, clinicId: string, serviceId: string) {
+  const [row] = await db
+    .select()
+    .from(services)
+    .where(and(eq(services.id, serviceId), eq(services.clinicId, clinicId)))
+    .limit(1);
+  if (!row) throw new Error("VALIDATION:service_not_in_tenant");
+  return row;
+}
+
 async function assertPatientInTenant(db: Awaited<ReturnType<typeof getDb>>, clinicId: string, patientId: string) {
   const [row] = await db
     .select({ id: patients.id })
@@ -192,6 +207,12 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
     await assertPatientInTenant(db, ctx.clinicId, input.patientId);
   }
 
+  let resolvedServiceName = input.serviceName?.trim() || null;
+  if (input.serviceId) {
+    const service = await getServiceInTenant(db, ctx.clinicId, input.serviceId);
+    if (!resolvedServiceName) resolvedServiceName = service.name;
+  }
+
   const conflict = await hasConflict(db, ctx.clinicId, input.professionalUserId, starts, ends);
   if (conflict) {
     throw new Error("CONFLICT:schedule_overlap");
@@ -202,7 +223,8 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
     patientId: input.patientId ?? null,
     professionalUserId: input.professionalUserId,
     type,
-    serviceName: input.serviceName?.trim() || null,
+    serviceId: input.serviceId ?? null,
+    serviceName: resolvedServiceName,
     startsAt: starts,
     endsAt: ends,
     status: "scheduled",
@@ -279,6 +301,10 @@ export async function updateAppointment(
   if (input.patientId !== undefined) patch.patientId = input.patientId;
   if (input.professionalUserId !== undefined) patch.professionalUserId = input.professionalUserId;
   if (input.type !== undefined) patch.type = input.type;
+  if (input.serviceId !== undefined) {
+    if (input.serviceId) await getServiceInTenant(db, ctx.clinicId, input.serviceId);
+    patch.serviceId = input.serviceId;
+  }
   if (input.serviceName !== undefined) patch.serviceName = input.serviceName?.trim() || null;
   if (input.startsAt !== undefined) patch.startsAt = nextStartsAt;
   if (input.endsAt !== undefined) patch.endsAt = nextEndsAt;

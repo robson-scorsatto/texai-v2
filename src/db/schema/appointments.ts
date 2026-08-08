@@ -2,6 +2,7 @@ import { pgTable, uuid, text, timestamp, boolean, index } from "drizzle-orm/pg-c
 import { clinics } from "./clinics";
 import { users } from "./users";
 import { patients } from "./patients";
+import { services } from "./services";
 
 /**
  * An appointment belongs to EXACTLY ONE clinic (tenant), same pattern as
@@ -48,6 +49,11 @@ export const appointments = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
 
     type: text("type").notNull().default("atendimento"), // AppointmentType
+    // Optional link to the service catalog (Sprint 12). serviceName
+    // remains as a free-text OVERRIDE — if set, it takes precedence for
+    // display, but serviceId is what the price/duration defaults derive
+    // from. Neither is required (a "bloqueio" has neither).
+    serviceId: uuid("service_id").references(() => services.id, { onDelete: "set null" }),
     serviceName: text("service_name"),
 
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),

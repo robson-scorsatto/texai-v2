@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "./client";
-import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords, financialEntries, dentalCharts, toothRecords, messageTemplates, reminderRules, outboundMessages } from "./schema";
+import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords, financialEntries, dentalCharts, toothRecords, messageTemplates, reminderRules, outboundMessages, services } from "./schema";
 import { ALL_PERMISSIONS } from "./seed-data/permissions";
 import { MODULE_CATALOG } from "./seed-data/modules";
 import { ROLE_PERMISSION_KEYS } from "./seed-data/roles";
@@ -575,6 +575,34 @@ async function main() {
           createdByUserId: admin.id,
         });
       }
+    }
+  }
+
+  console.log("→ Seeding fictitious service catalog (isDevSeedData = true)...");
+  {
+    const fakeServices: Array<{ name: string; defaultPriceCents: number; defaultDurationMinutes: number }> = [
+      { name: "Consulta de rotina", defaultPriceCents: 15000, defaultDurationMinutes: 30 },
+      { name: "Limpeza", defaultPriceCents: 12000, defaultDurationMinutes: 45 },
+      { name: "Avaliação", defaultPriceCents: 8000, defaultDurationMinutes: 30 },
+      { name: "Restauração", defaultPriceCents: 25000, defaultDurationMinutes: 60 },
+    ];
+
+    for (const fs of fakeServices) {
+      const [existing] = await db
+        .select({ id: services.id })
+        .from(services)
+        .where(and(eq(services.clinicId, clinic.id), eq(services.name, fs.name)))
+        .limit(1);
+      if (existing) continue;
+
+      await db.insert(services).values({
+        clinicId: clinic.id,
+        name: fs.name,
+        defaultPriceCents: fs.defaultPriceCents,
+        defaultDurationMinutes: fs.defaultDurationMinutes,
+        isDevSeedData: true,
+        createdByUserId: admin.id,
+      });
     }
   }
 

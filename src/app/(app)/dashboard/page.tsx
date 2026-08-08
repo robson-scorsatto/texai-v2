@@ -85,6 +85,18 @@ export default async function DashboardPage() {
           </Card>
         )}
 
+        {modules.includes("AGENDA") && (
+          <Card className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-medium text-gray-900">Catálogo de Serviços</h2>
+              <p className="text-xs text-gray-500">Gerencie preços e durações padrão dos serviços.</p>
+            </div>
+            <Link href="/servicos" className="text-sm font-medium text-gray-900 underline">
+              Abrir →
+            </Link>
+          </Card>
+        )}
+
         {modules.includes("FINANCE") && (
           <Card className="mb-6 flex items-center justify-between">
             <div>

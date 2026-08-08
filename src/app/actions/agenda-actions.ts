@@ -45,6 +45,7 @@ function toActionError(err: unknown): string {
         patient_required_for_atendimento: "Selecione um paciente para um atendimento.",
         patient_not_in_tenant: "Paciente inválido para esta clínica.",
         professional_not_in_tenant: "Profissional inválido para esta clínica.",
+        service_not_in_tenant: "Serviço inválido para esta clínica.",
         invalid_datetime: "Data/hora inválida.",
         ends_before_starts: "O horário de término deve ser depois do início.",
       };

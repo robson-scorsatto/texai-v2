@@ -171,3 +171,23 @@ Sexto módulo de negócio real. **Decisão explícita de escopo, confirmada com 
 - Sem suporte a outros canais (SMS, e-mail) — `channel` já existe no schema como campo mas só `"whatsapp"` está implementado.
 - Sem teste E2E de navegador para os formulários de template/regra (mesma lacuna estrutural documentada nos sprints anteriores).
 - Mesma pendência operacional dos Sprints 7-10 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.
+
+## Sprint 12 — Catálogo de Serviços
+
+Frente estrutural fechando lacunas documentadas nos Sprints 7 e 9: o campo `serviceName` da Agenda era texto livre sem preço padrão associado, e o lançamento financeiro não tinha como se pré-preencher a partir de um serviço. Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, roadmap de sprints.
+
+| # | Requisito | Implementação | Status | Teste |
+|---|---|---|---|---|
+| 1 | Schema de Serviços (tenant-scoped) | `src/db/schema/services.ts` — `name`, `defaultPriceCents`, `defaultDurationMinutes`, `isActive`. Nova coluna `service_id` (nullable, FK) em `appointments`; `serviceName` permanece como override opcional de texto livre — nenhum dos dois é obrigatório (bloqueio não tem serviço) | ✅ Feito | Migration `drizzle/0007_unusual_wallop.sql` aplicada com sucesso |
+| 2 | Service layer tenant-safe + integração com Agenda | `src/lib/services/services-service.ts` — CRUD completo com soft-delete (`deactivateService`). `agenda-service.ts` atualizado: `createAppointment`/`updateAppointment` aceitam `serviceId` opcional, validam que pertence à clínica, e derivam `serviceName` do serviço quando não informado explicitamente (o texto livre, se passado, sempre tem prioridade) | ✅ Feito | `tests/services.test.ts` — blocos "service layer CRUD" e "integration with Agenda" (7 casos) |
+| 3 | Server actions + gates de módulo/permissão | `src/app/actions/services-actions.ts` — vive sob o módulo `AGENDA` (serviços são configuração central de agendamento, sem módulo próprio); leitura usa `agenda.view`, escrita reaproveita `settings.manage` | ✅ Feito | `tests/services.test.ts` — blocos "cross-tenant isolation" e "RBAC enforcement" |
+| 4 | UI — gestão de serviços + integração no formulário de agendamento | Nova página `/servicos` (listar/criar/editar/desativar, com preço e duração padrão); formulário `/agenda/new` ganhou um seletor de serviço do catálogo que pré-preenche o horário de término pela duração padrão, mantendo o campo de texto livre como alternativa/override; link no `/dashboard` | ✅ Feito | Verificado via `next build`; sem E2E de navegador nesta sessão |
+| 5 | Seed de serviços fictícios | `src/db/seed.ts` — 4 serviços típicos de odontologia (Consulta de rotina, Limpeza, Avaliação, Restauração) com preços e durações, `isDevSeedData: true`, idempotente | ✅ Feito | `npm run db:seed` executado com sucesso; verificado manualmente (4 serviços) |
+| 6 | Testes — CRUD, integração, permissões, cross-tenant | `tests/services.test.ts` (11 casos) | ✅ Feito | 96/96 testes passando no total (`npm run test`) |
+
+### Pendências conhecidas do Sprint 12
+
+- O lançamento financeiro ainda não se pré-preenche automaticamente com o preço do serviço vinculado ao agendamento — a integração desta sprint foi limitada a Agenda ↔ Serviços; Financeiro ↔ Serviços fica para uma sprint futura pequena, reaproveitando o mesmo padrão.
+- Sem categorização de serviços (ex.: "Preventivo", "Restaurador", "Estético") — lista plana por enquanto, suficiente para o volume esperado de uma clínica individual.
+- Sem teste E2E de navegador para o formulário de gestão de serviços nem para o seletor integrado no formulário de agendamento (mesma lacuna estrutural documentada nos sprints anteriores).
+- Mesma pendência operacional dos Sprints 7-11 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.

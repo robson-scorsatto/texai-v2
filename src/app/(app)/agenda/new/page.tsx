@@ -6,6 +6,7 @@ import { hasModule } from "@/lib/entitlements/modules";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { listClinicProfessionals } from "@/lib/agenda/agenda-service";
 import { listPatients } from "@/lib/patients/patients-service";
+import { listServices } from "@/lib/services/services-service";
 import { Card } from "@/components/ui/card";
 import { NewAppointmentForm } from "./new-appointment-form";
 
@@ -40,9 +41,10 @@ export default async function NewAppointmentPage({
   }
 
   const patientsModuleEnabled = await hasModule("PATIENTS");
-  const [professionals, patientsResult] = await Promise.all([
+  const [professionals, patientsResult, servicesList] = await Promise.all([
     listClinicProfessionals(),
     patientsModuleEnabled ? listPatients({ pageSize: 100 }) : Promise.resolve({ patients: [] }),
+    listServices(),
   ]);
 
   const params = await searchParams;
@@ -61,6 +63,7 @@ export default async function NewAppointmentPage({
           <NewAppointmentForm
             professionals={professionals}
             patients={patientsResult.patients}
+            services={servicesList}
             defaultDate={params.date}
           />
         </Card>

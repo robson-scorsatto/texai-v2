@@ -11,3 +11,4 @@ export * from "./clinical-records";
 export * from "./financial-entries";
 export * from "./dental-charts";
 export * from "./messaging";
+export * from "./services";
