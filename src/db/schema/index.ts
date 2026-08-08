@@ -13,3 +13,4 @@ export * from "./dental-charts";
 export * from "./messaging";
 export * from "./services";
 export * from "./billing";
+export * from "./integrations";

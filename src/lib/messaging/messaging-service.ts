@@ -15,7 +15,7 @@ import {
 } from "@/db/schema";
 import { resolveTenantContext } from "@/lib/tenant/resolve-tenant";
 import { recordAudit } from "@/lib/audit";
-import { getMessageProvider } from "./providers/mock-provider";
+import { getMessageProviderForClinic } from "./providers/provider-factory";
 
 /**
  * Tenant-safe service layer for WhatsApp/Automações. Message DELIVERY
@@ -227,7 +227,7 @@ export async function sendMessage(input: SendMessageInput): Promise<OutboundMess
   if (!template) throw new Error("VALIDATION:template_not_in_tenant");
 
   const body = renderTemplate(template.bodyTemplate, input.variables);
-  const provider = getMessageProvider();
+  const provider = await getMessageProviderForClinic(ctx.clinicId);
   const result = await provider.send(patient.phone, body);
 
   const [logged] = await db

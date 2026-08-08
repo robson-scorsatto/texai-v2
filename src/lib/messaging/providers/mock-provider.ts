@@ -1,14 +1,11 @@
 import type { MessageProvider, SendResult } from "./message-provider";
 
 /**
- * MOCK PROVIDER — does not send anything over the network. This sandbox
- * has no outbound internet access to WhatsApp providers, and choosing
- * between Evolution API (used by the legacy platform, see Auditoria 01
- * seção 2) and Meta's official Cloud API is a product/business decision
- * Robson hasn't made yet. This provider exists so the rest of the
- * system (schema, service layer, UI, audit log) can be built and
- * tested end-to-end today, with a real provider swapped in later
- * behind the same MessageProvider interface — no other code changes.
+ * MOCK PROVIDER — does not send anything over the network. Used as the
+ * automatic fallback whenever a clinic has NOT configured a real
+ * WhatsApp integration yet (see provider-factory.ts) — so the rest of
+ * the system (schema, service layer, UI, audit log) keeps working
+ * end-to-end even before Robson activates Meta Cloud API for a clinic.
  *
  * Always "succeeds" (deterministic, no flakiness in tests) and logs to
  * the console so a developer running `npm run dev` can see what would
@@ -21,12 +18,4 @@ export class MockWhatsAppProvider implements MessageProvider {
     console.log(`[MockWhatsAppProvider] Would send to ${to}:\n${body}\n(id: ${providerMessageId})`);
     return { status: "sent", providerMessageId };
   }
-}
-
-let providerInstance: MessageProvider | null = null;
-
-/** Returns the currently configured provider. Today this is always the mock. */
-export function getMessageProvider(): MessageProvider {
-  if (!providerInstance) providerInstance = new MockWhatsAppProvider();
-  return providerInstance;
 }

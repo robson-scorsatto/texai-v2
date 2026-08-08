@@ -24,6 +24,14 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
 
   APP_URL: z.string().default("http://localhost:3000"),
+
+  // 32 raw bytes, base64-encoded — used to encrypt third-party
+  // integration credentials at rest (see src/lib/crypto/secret-box.ts).
+  // Generate with: openssl rand -base64 32. Separate from
+  // SESSION_SECRET on purpose — rotating one must never affect the
+  // other. Dev fallback below is INSECURE and must never be used in
+  // production.
+  INTEGRATIONS_ENCRYPTION_KEY: z.string().default("MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE="),
 });
 
 export const env = envSchema.parse({
@@ -32,4 +40,5 @@ export const env = envSchema.parse({
   SESSION_SECRET: process.env.SESSION_SECRET ?? "dev-only-insecure-secret-change-me-32chars",
   PRIVATE_BETA: process.env.PRIVATE_BETA,
   APP_URL: process.env.APP_URL,
+  INTEGRATIONS_ENCRYPTION_KEY: process.env.INTEGRATIONS_ENCRYPTION_KEY,
 });

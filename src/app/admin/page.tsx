@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/auth-service";
 import { listAllClinics, listPrivateBetaAllowlist } from "@/lib/platform-admin/platform-admin-service";
 import { listAllPlansForAdmin } from "@/lib/billing/billing-service";
+import { getPlatformStripeStatus } from "@/lib/integrations/integrations-service";
+import { AdminStripeConfig } from "./admin-stripe-config";
 import { Card } from "@/components/ui/card";
 import { logoutAction } from "@/app/actions/auth-actions";
 import { Button } from "@/components/ui/button";
@@ -21,10 +23,11 @@ export default async function AdminPage() {
   if (!current) redirect("/login");
   if (!current.user.isPlatformAdmin) redirect("/select-clinic");
 
-  const [clinicsList, betaUsers, allPlans] = await Promise.all([
+  const [clinicsList, betaUsers, allPlans, stripeStatus] = await Promise.all([
     listAllClinics(),
     listPrivateBetaAllowlist(),
     listAllPlansForAdmin(),
+    getPlatformStripeStatus(),
   ]);
 
   return (
@@ -45,6 +48,14 @@ export default async function AdminPage() {
             Clínicas cadastradas ({clinicsList.length})
           </h2>
           <AdminClinicsTable initialClinics={clinicsList} allPlans={allPlans} />
+        </Card>
+
+        <Card>
+          <h2 className="mb-1 text-sm font-medium text-gray-900">Integrações — Pagamento (Stripe)</h2>
+          <p className="mb-4 text-xs text-gray-500">
+            Configuração única para toda a plataforma. Veja docs/GUIA_INTEGRACAO.md para o passo a passo completo.
+          </p>
+          <AdminStripeConfig initialStatus={stripeStatus} />
         </Card>
 
         <Card>
