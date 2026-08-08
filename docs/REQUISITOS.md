@@ -235,3 +235,25 @@ Expande o painel `/admin` mínimo do Sprint 0 para uma ferramenta operacional re
 - Sem período de cobrança automático (nenhum job recorrente que avança `currentPeriodEnd` ou marca `past_due`).
 - Sem teste E2E de navegador para a UI de troca de plano no admin nem para a página `/configuracoes/plano` (mesma lacuna estrutural documentada nos sprints anteriores).
 - Mesma pendência operacional dos Sprints 7-13 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.
+
+## Sprint 15 — Onboarding self-service (cadastro público)
+
+Fecha uma lacuna estrutural documentada desde a Auditoria 02: até esta sprint, a ÚNICA forma de criar uma nova clínica era via `npm run db:seed` (dev) ou programaticamente — não existia um fluxo real de cadastro público. Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`; Auditoria 02, mapeamento do fluxo de Cadastro do site legado.
+
+**Decisão de design importante — interação com o Private Beta**: um usuário recém-cadastrado nasce com `isAllowedInPrivateBeta = false` (default da coluna, nunca sobrescrito no cadastro). Com `PRIVATE_BETA=true` (padrão), o cadastro cria a conta e a clínica de verdade, mas **não** inicia sessão automaticamente — logar o usuário nesse momento só produziria um "logado mas bloqueado" confuso no próximo request. Em vez disso, o usuário vê uma tela de "aguardando aprovação" e precisa ser liberado por um administrador da plataforma (`/admin` → allowlist, já existente desde o Sprint 13) antes de conseguir entrar. Com `PRIVATE_BETA=false` (lançamento público), o cadastro loga o usuário imediatamente.
+
+| # | Requisito | Implementação | Status | Teste |
+|---|---|---|---|---|
+| 1 | Service layer de registro | `src/lib/auth/register-service.ts` — `registerAndCreateClinic()`: valida nome/e-mail/senha (mín. 8 caracteres)/nome da clínica, rejeita e-mail duplicado, faz hash da senha, cria usuário (nunca com `isPlatformAdmin`/`isAllowedInPrivateBeta` elevados), cria a clínica via `createClinic()` já existente com o novo usuário como OWNER, cria uma assinatura trial no plano "Básico" se o catálogo de planos existir (billing scaffolding do Sprint 14 é integração opcional, não obrigatória), grava auditoria, e só inicia sessão se `PRIVATE_BETA=false` | ✅ Feito | `tests/register.test.ts` — blocos "creates user + clinic + OWNER" e "billing scaffolding integration" |
+| 2 | Server action | `src/app/actions/register-actions.ts` — `registerAction`, mesmo padrão de `loginAction` (FormData + `useActionState`), redireciona para `/select-clinic` (sessão iniciada) ou `/signup/pendente` (aguardando aprovação) | ✅ Feito | `tests/register.test.ts` — bloco "server action layer" |
+| 3 | UI — página de cadastro + tela de pendência | Nova página `/signup` (nome, e-mail, senha, nome da clínica) com link a partir de `/login`; nova página `/signup/pendente` explicando o estado de Private Beta quando aplicável | ✅ Feito | Verificado via `next build`; sem E2E de navegador nesta sessão |
+| 4 | Testes | `tests/register.test.ts` (11 casos): cria usuário+clínica+OWNER corretamente, nunca eleva privilégios, faz hash de senha, rejeita e-mail duplicado, rejeita senha fraca/e-mail inválido/nomes vazios, permite duas clínicas com o mesmo nome de exibição (slugs únicos, não nomes únicos — corrige a pendência de dedupe documentada desde o Sprint 6), não inicia sessão com `PRIVATE_BETA=true`, usuário recém-cadastrado não consegue logar até ser liberado na allowlist, integra corretamente com o catálogo de planos do Sprint 14 (com e sem catálogo semeado) | ✅ Feito | 130/130 testes passando no total (`npm run test`, executado em lotes nesta sessão por limite de tempo da ferramenta de shell — todos os 14 arquivos de teste passaram) |
+
+### Pendências conhecidas do Sprint 15 — leitura obrigatória antes de qualquer uso em produção
+
+- **Sem verificação de e-mail.** Qualquer endereço é aceito no cadastro sem confirmação por e-mail — não há envio de e-mail transacional na plataforma ainda (mesma lacuna do envio de WhatsApp real, Sprint 11).
+- **Sem CAPTCHA/rate limiting no formulário de cadastro** — vulnerável a criação automatizada de contas em massa se exposto publicamente sem proteção adicional na camada de infraestrutura (ex.: Cloudflare, rate limit por IP).
+- Com `PRIVATE_BETA=true`, o usuário recém-cadastrado não recebe nenhuma notificação de que foi liberado — precisa tentar logar manualmente depois. Um e-mail de "conta aprovada" fica para quando houver envio de e-mail transacional.
+- Não há fluxo de "esqueci minha senha" — outra lacuna herdada do sistema de autenticação original, documentada desde o Sprint 0.
+- Sem teste E2E de navegador para o formulário de cadastro (mesma lacuna estrutural documentada nos sprints anteriores).
+- Mesma pendência operacional dos Sprints 7-14 sobre `createClinic()` (chamado agora também pelo cadastro) não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado — não é um bug do cadastro, é uma característica aceita e testada nesta sprint (ver teste "allows two different clinics with the same display name").

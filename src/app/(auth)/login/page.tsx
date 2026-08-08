@@ -6,6 +6,7 @@ import { loginAction, type LoginActionState } from "@/app/actions/auth-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import Link from "next/link";
 
 const initialState: LoginActionState = null;
 
@@ -39,6 +40,17 @@ function LoginForm() {
   );
 }
 
+function SignupLink() {
+  return (
+    <p className="mt-4 text-center text-xs text-gray-500">
+      Ainda não tem conta?{" "}
+      <Link href="/signup" className="font-medium text-gray-900 underline">
+        Criar conta
+      </Link>
+    </p>
+  );
+}
+
 export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -48,6 +60,7 @@ export default function LoginPage() {
         <Suspense fallback={null}>
           <LoginForm />
         </Suspense>
+        <SignupLink />
       </Card>
     </main>
   );
