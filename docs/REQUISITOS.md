@@ -191,3 +191,22 @@ Frente estrutural fechando lacunas documentadas nos Sprints 7 e 9: o campo `serv
 - Sem categorização de serviços (ex.: "Preventivo", "Restaurador", "Estético") — lista plana por enquanto, suficiente para o volume esperado de uma clínica individual.
 - Sem teste E2E de navegador para o formulário de gestão de serviços nem para o seletor integrado no formulário de agendamento (mesma lacuna estrutural documentada nos sprints anteriores).
 - Mesma pendência operacional dos Sprints 7-11 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.
+
+## Sprint 13 — Painel Administrativo interno (Sistema Global) expandido
+
+Expande o painel `/admin` mínimo do Sprint 0 para uma ferramenta operacional real, permitindo administrar a plataforma sem tocar diretamente no banco de dados. Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, itens 41/42 ("Admin TEXAI" / "Private Admin").
+
+| # | Requisito | Implementação | Status | Teste |
+|---|---|---|---|---|
+| 1 | Service layer platform-wide (fora do RBAC de clínica) | `src/lib/platform-admin/platform-admin-service.ts` — `listAllClinics` (com contagem de membros e pacientes por clínica), `listClinicModules`/`toggleClinicModule`, `listPrivateBetaAllowlist`/`setUserBetaAccess`. Toda função chama `requirePlatformAdmin()` diretamente (verifica `isPlatformAdmin` via `getCurrentUser()`) — deliberadamente NÃO usa `resolveTenantContext()`, já que é cross-tenant por natureza | ✅ Feito | `tests/platform-admin.test.ts` — blocos "access control" e "clinic listing with counts" (5 casos) |
+| 2 | Server actions | `src/app/actions/platform-admin-actions.ts` — não usa `requireModule`/`requirePermission` (está fora do sistema RBAC de clínica por design); a checagem de admin vive inteiramente na service layer | ✅ Feito | `tests/platform-admin.test.ts` — casos de "does not leak platform-admin data through the server action layer" |
+| 3 | UI expandida | `/admin` — tabela de clínicas com contagem de membros/pacientes e expansão inline para ver/alternar módulos habilitados (toggles clicáveis); nova seção de allowlist do Private Beta com toggle de permitir/revogar por usuário | ✅ Feito | Verificado via `next build`; sem E2E de navegador nesta sessão |
+| 4 | Testes — isolamento de acesso, toggle de módulo, allowlist | `tests/platform-admin.test.ts` (10 casos): rejeita toda função para usuário não-autenticado e para usuário autenticado não-admin (mesmo um OWNER de clínica com todas as permissões), confirma que admin acessa tudo, contagens corretas, toggle liga/desliga módulo corretamente, chave de módulo desconhecida é rejeitada, allowlist concede/revoga acesso corretamente | ✅ Feito | 106/106 testes passando no total (`npm run test`, executado em dois lotes nesta sessão por limite de tempo da ferramenta de shell — todos os arquivos de teste passaram) |
+
+### Pendências conhecidas do Sprint 13
+
+- Sem métricas de uso além de contagem de membros/pacientes (ex.: agendamentos no mês, mensagens enviadas, receita total) — suficiente para operação básica, mas fica para uma sprint futura de "observabilidade da plataforma" se necessário.
+- Criação de nova clínica pelo painel admin (hoje só acontece via `createClinic()` chamado programaticamente/seed) não foi implementada — o fluxo real de onboarding de uma nova clínica (sign-up) continua fora do escopo, como documentado desde a Auditoria 02.
+- Sem paginação na lista de clínicas nem na allowlist — aceitável no volume atual (ambiente de desenvolvimento/Private Beta), deve ser revisitado se a base de clínicas crescer.
+- Sem teste E2E de navegador para os toggles de módulo e allowlist (mesma lacuna estrutural documentada nos sprints anteriores).
+- Mesma pendência operacional dos Sprints 7-12 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.

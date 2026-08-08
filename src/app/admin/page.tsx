@@ -1,24 +1,26 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/auth-service";
-import { getDb } from "@/db/client";
-import { clinics } from "@/db/schema";
+import { listAllClinics, listPrivateBetaAllowlist } from "@/lib/platform-admin/platform-admin-service";
 import { Card } from "@/components/ui/card";
 import { logoutAction } from "@/app/actions/auth-actions";
 import { Button } from "@/components/ui/button";
+import { AdminClinicsTable } from "./admin-clinics-table";
+import { AdminBetaAllowlist } from "./admin-beta-allowlist";
 
 /**
  * "Sistema Global" — TEXAI platform admin panel. Protected independently
  * from clinic-level RBAC: only isPlatformAdmin === true may render this
- * page at all (checked here, on the server, not just by hiding a link).
- * See prompt mestre item 41/42 ("Admin TEXAI" / "Private Admin").
+ * page at all (checked here, on the server, not just by hiding a link),
+ * and every server action it calls re-checks isPlatformAdmin itself
+ * (see src/lib/platform-admin/platform-admin-service.ts). See prompt
+ * mestre item 41/42 ("Admin TEXAI" / "Private Admin").
  */
 export default async function AdminPage() {
   const current = await getCurrentUser();
   if (!current) redirect("/login");
   if (!current.user.isPlatformAdmin) redirect("/select-clinic");
 
-  const db = await getDb();
-  const allClinics = await db.select().from(clinics);
+  const [clinicsList, betaUsers] = await Promise.all([listAllClinics(), listPrivateBetaAllowlist()]);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -32,33 +34,21 @@ export default async function AdminPage() {
         </form>
       </header>
 
-      <div className="mx-auto max-w-4xl px-6 py-8">
+      <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
         <Card>
-          <h2 className="mb-4 text-sm font-medium text-gray-900">Clínicas cadastradas ({allClinics.length})</h2>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-xs uppercase text-gray-400">
-                <th className="pb-2">Nome</th>
-                <th className="pb-2">Tipo</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2">Dev seed?</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allClinics.map((c) => (
-                <tr key={c.id} className="border-b border-gray-100">
-                  <td className="py-2">{c.name}</td>
-                  <td className="py-2 text-gray-500">{c.businessType}</td>
-                  <td className="py-2">
-                    <span className={c.isActive ? "text-green-600" : "text-red-600"}>
-                      {c.isActive ? "Ativa" : "Inativa"}
-                    </span>
-                  </td>
-                  <td className="py-2 text-gray-400">{c.isDevSeedData ? "sim" : "não"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <h2 className="mb-4 text-sm font-medium text-gray-900">
+            Clínicas cadastradas ({clinicsList.length})
+          </h2>
+          <AdminClinicsTable initialClinics={clinicsList} />
+        </Card>
+
+        <Card>
+          <h2 className="mb-1 text-sm font-medium text-gray-900">Private Beta — allowlist</h2>
+          <p className="mb-4 text-xs text-gray-500">
+            Usuários administradores da plataforma sempre têm acesso, independentemente desta lista (ver
+            src/lib/auth/private-beta.ts) — por isso não aparecem aqui.
+          </p>
+          <AdminBetaAllowlist initialUsers={betaUsers} />
         </Card>
       </div>
     </main>
