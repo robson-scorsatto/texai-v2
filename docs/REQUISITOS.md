@@ -108,3 +108,24 @@ Terceiro módulo de negócio real, conectando Pacientes (Sprint 6) e Agenda (Spr
 - Modelos de anamnese configuráveis (formulário estruturado, não texto livre) ficam para sprint futura — hoje `content` é texto livre, suficiente para validar o fluxo core de timeline + assinatura.
 - Sem teste E2E de navegador para o formulário de nova entrada/assinatura (mesma lacuna estrutural documentada nos Sprints 0, 6 e 7).
 - Mesma pendência operacional do Sprint 7 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.
+
+## Sprint 9 — Módulo Financeiro
+
+Quarto módulo de negócio real, fechando o tripé Pacientes + Agenda + Financeiro identificado como o núcleo mais usado na Auditoria 01 da plataforma legada. Substitui o placeholder "Financeiro" na ficha do paciente (desde o Sprint 6) e adiciona uma visão geral consolidada da clínica. Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, roadmap de sprints.
+
+| # | Requisito | Implementação | Status | Teste |
+|---|---|---|---|---|
+| 1 | Schema de Financeiro (tenant-scoped) | `src/db/schema/financial-entries.ts` — `clinicId` obrigatório, `patientId`/`appointmentId` opcionais, `type` (receita/despesa), `status` (pending/paid/overdue/cancelled), `amountCents` (inteiro, nunca float), índices por `(clinicId, status)` e `(clinicId, patientId)` | ✅ Feito | Migration `drizzle/0004_woozy_firedrake.sql` aplicada com sucesso |
+| 2 | Service layer tenant-safe + imutabilidade | `src/lib/finance/finance-service.ts` — `listFinancialEntries`, `getFinancialTotals` (a receber/recebido/em atraso), `getFinancialEntry`, `createFinancialEntry`, `updateFinancialEntry`, `markAsPaid`, `cancelFinancialEntry`. Lançamento pago ou cancelado nunca pode ser editado; `sweepOverdue()` recalcula `pending` → `overdue` a cada leitura com base na data de vencimento | ✅ Feito | `tests/finance.test.ts` — blocos "service layer CRUD" e "totals and overdue sweep" (6 casos) |
+| 3 | Server actions + gates de módulo/permissão | `src/app/actions/finance-actions.ts` — `requireModule('FINANCE')` + `requirePermission('financial.view/create/edit/delete')` conforme a ação (delete mapeia para cancelamento, dinheiro nunca é apagado de verdade) | ✅ Feito | `tests/finance.test.ts` — blocos "cross-tenant isolation" e "RBAC enforcement" |
+| 4 | UI — aba Financeiro na ficha do paciente + visão geral da clínica | Aba "Financeiro" em `/patients/[id]` (lista de lançamentos do paciente, novo lançamento, marcar como pago, cancelar); nova página `/financeiro` com cards de totais (A receber / Recebido / Em atraso) e lista de todos os lançamentos da clínica; link no `/dashboard` quando o módulo está habilitado | ✅ Feito | Verificado via `next build`; sem E2E de navegador nesta sessão |
+| 5 | Seed de lançamentos fictícios | `src/db/seed.ts` — 3 lançamentos fictícios (1 pago, 1 pendente futuro, 1 já vencido), `isDevSeedData: true`, idempotente | ✅ Feito | `npm run db:seed` executado com sucesso; verificado manualmente que os 3 registros existem e só na clínica de dev |
+| 6 | Testes — CRUD, totais, permissões, cross-tenant | `tests/finance.test.ts` (12 casos) | ✅ Feito | 63/63 testes passando no total (`npm run test`) |
+
+### Pendências conhecidas do Sprint 9
+
+- `sweepOverdue()` roda a cada leitura (list/totals) em vez de um job agendado — suficiente para o MVP, mas se o volume de lançamentos crescer muito vale mover para um cron/job de backend.
+- Sem suporte a parcelamento (uma cobrança dividida em N lançamentos vinculados) nem a métodos de pagamento (dinheiro/cartão/PIX) — ambos ficam para sprint futura de Financeiro avançado.
+- Despesas da clínica (`type: "despesa"`) já têm suporte no schema e no service layer, mas a UI construída nesta sprint só expõe o fluxo de receita por paciente — tela dedicada a despesas fica para sprint futura.
+- Sem teste E2E de navegador para os formulários de novo lançamento/marcar pago (mesma lacuna estrutural documentada nos Sprints 0, 6, 7 e 8).
+- Mesma pendência operacional dos Sprints 7 e 8 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.

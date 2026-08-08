@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Patient, ClinicalRecord } from "@/db/schema";
+import type { Patient, ClinicalRecord, FinancialEntry } from "@/db/schema";
 import {
   updatePatientAction,
   deactivatePatientAction,
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { clsx } from "@/lib/clsx";
 import { ClinicalRecordsTab } from "./clinical-records-tab";
+import { FinanceTab } from "./finance-tab";
 
 const TABS = [
   { key: "dados", label: "Dados" },
@@ -31,6 +32,12 @@ export function PatientDetailClient({
   canEditRecords,
   canSignRecords,
   initialClinicalRecords,
+  financeModuleEnabled,
+  canViewFinance,
+  canCreateFinance,
+  canEditFinance,
+  canDeleteFinance,
+  initialFinancialEntries,
 }: {
   patient: Patient;
   canEdit: boolean;
@@ -40,6 +47,12 @@ export function PatientDetailClient({
   canEditRecords: boolean;
   canSignRecords: boolean;
   initialClinicalRecords: ClinicalRecord[];
+  financeModuleEnabled: boolean;
+  canViewFinance: boolean;
+  canCreateFinance: boolean;
+  canEditFinance: boolean;
+  canDeleteFinance: boolean;
+  initialFinancialEntries: FinancialEntry[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("dados");
@@ -128,11 +141,27 @@ export function PatientDetailClient({
       )}
 
       {tab === "financeiro" && (
-        <Card>
-          <p className="text-sm text-gray-500">
-            Módulo Financeiro por paciente ainda não implementado — planejado para um sprint futuro.
-          </p>
-        </Card>
+        <>
+          {!financeModuleEnabled ? (
+            <Card>
+              <p className="text-sm text-gray-500">
+                O módulo Financeiro não está habilitado para esta clínica.
+              </p>
+            </Card>
+          ) : !canViewFinance ? (
+            <Card>
+              <p className="text-sm text-gray-500">Você não tem permissão para ver o financeiro.</p>
+            </Card>
+          ) : (
+            <FinanceTab
+              patientId={patient.id}
+              canCreate={canCreateFinance}
+              canEdit={canEditFinance}
+              canDelete={canDeleteFinance}
+              initialEntries={initialFinancialEntries}
+            />
+          )}
+        </>
       )}
 
       {tab === "dados" && (

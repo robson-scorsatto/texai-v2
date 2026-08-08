@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "./client";
-import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords } from "./schema";
+import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords, financialEntries } from "./schema";
 import { ALL_PERMISSIONS } from "./seed-data/permissions";
 import { MODULE_CATALOG } from "./seed-data/modules";
 import { ROLE_PERMISSION_KEYS } from "./seed-data/roles";
@@ -358,6 +358,88 @@ async function main() {
         signedAt: fr.signed ? new Date() : null,
         signedByUserId: fr.signed ? profIngrid : null,
         isDevSeedData: true,
+      });
+    }
+  }
+
+  console.log("→ Seeding fictitious financial entries (isDevSeedData = true)...");
+  {
+    const anaId = patientByName("Ana Beatriz Souza (dev)");
+    const carlosId = patientByName("Carlos Eduardo Lima (dev)");
+    const fernandaId = patientByName("Fernanda Costa Ribeiro (dev)");
+
+    function pastDate(daysAgo: number) {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - daysAgo);
+      return d.toISOString().slice(0, 10);
+    }
+    function futureDate(daysFromNow: number) {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() + daysFromNow);
+      return d.toISOString().slice(0, 10);
+    }
+
+    const fakeEntries: Array<{
+      patientId: string | undefined;
+      description: string;
+      amountCents: number;
+      status: "pending" | "paid" | "overdue";
+      dueDate: string;
+      paidAt: Date | null;
+    }> = [
+      {
+        patientId: anaId,
+        description: "Consulta de rotina (fictício de desenvolvimento)",
+        amountCents: 15000,
+        status: "paid",
+        dueDate: pastDate(10),
+        paidAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000),
+      },
+      {
+        patientId: carlosId,
+        description: "Limpeza (fictício de desenvolvimento)",
+        amountCents: 12000,
+        status: "pending",
+        dueDate: futureDate(5),
+        paidAt: null,
+      },
+      {
+        patientId: fernandaId,
+        description: "Avaliação (fictício de desenvolvimento)",
+        amountCents: 8000,
+        status: "overdue",
+        dueDate: pastDate(5),
+        paidAt: null,
+      },
+    ];
+
+    for (const fe of fakeEntries) {
+      if (!fe.patientId) continue;
+
+      const [existing] = await db
+        .select({ id: financialEntries.id })
+        .from(financialEntries)
+        .where(
+          and(
+            eq(financialEntries.clinicId, clinic.id),
+            eq(financialEntries.patientId, fe.patientId),
+            eq(financialEntries.description, fe.description)
+          )
+        )
+        .limit(1);
+      if (existing) continue;
+
+      await db.insert(financialEntries).values({
+        clinicId: clinic.id,
+        patientId: fe.patientId,
+        type: "receita",
+        status: fe.status,
+        description: fe.description,
+        amountCents: fe.amountCents,
+        dueDate: fe.dueDate,
+        paidAt: fe.paidAt,
+        isDevSeedData: true,
+        createdByUserId: admin.id,
       });
     }
   }

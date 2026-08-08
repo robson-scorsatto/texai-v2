@@ -6,6 +6,7 @@ import { hasModule } from "@/lib/entitlements/modules";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { getPatient } from "@/lib/patients/patients-service";
 import { listClinicalRecords } from "@/lib/clinical-records/clinical-records-service";
+import { listFinancialEntries } from "@/lib/finance/finance-service";
 import { Card } from "@/components/ui/card";
 import { PatientDetailClient } from "./patient-detail-client";
 
@@ -66,6 +67,19 @@ export default async function PatientDetailPage({
   const clinicalRecords =
     clinicalRecordModuleEnabled && canViewRecords ? await listClinicalRecords(patient.id) : [];
 
+  const financeModuleEnabled = await hasModule("FINANCE");
+  const [canViewFinance, canCreateFinance, canEditFinance, canDeleteFinance] = financeModuleEnabled
+    ? await Promise.all([
+        hasPermission("financial.view"),
+        hasPermission("financial.create"),
+        hasPermission("financial.edit"),
+        hasPermission("financial.delete"),
+      ])
+    : [false, false, false, false];
+
+  const financialEntries =
+    financeModuleEnabled && canViewFinance ? await listFinancialEntries({ patientId: patient.id }) : [];
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-200 bg-white px-6 py-4">
@@ -90,6 +104,12 @@ export default async function PatientDetailPage({
           canEditRecords={canEditRecords}
           canSignRecords={canSignRecords}
           initialClinicalRecords={clinicalRecords}
+          financeModuleEnabled={financeModuleEnabled}
+          canViewFinance={canViewFinance}
+          canCreateFinance={canCreateFinance}
+          canEditFinance={canEditFinance}
+          canDeleteFinance={canDeleteFinance}
+          initialFinancialEntries={financialEntries}
         />
       </div>
     </main>
