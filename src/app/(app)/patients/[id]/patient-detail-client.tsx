@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Patient } from "@/db/schema";
+import type { Patient, ClinicalRecord } from "@/db/schema";
 import {
   updatePatientAction,
   deactivatePatientAction,
@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { clsx } from "@/lib/clsx";
+import { ClinicalRecordsTab } from "./clinical-records-tab";
 
 const TABS = [
   { key: "dados", label: "Dados" },
@@ -25,10 +26,20 @@ export function PatientDetailClient({
   patient,
   canEdit,
   canDelete,
+  clinicalRecordModuleEnabled,
+  canViewRecords,
+  canEditRecords,
+  canSignRecords,
+  initialClinicalRecords,
 }: {
   patient: Patient;
   canEdit: boolean;
   canDelete: boolean;
+  clinicalRecordModuleEnabled: boolean;
+  canViewRecords: boolean;
+  canEditRecords: boolean;
+  canSignRecords: boolean;
+  initialClinicalRecords: ClinicalRecord[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("dados");
@@ -93,11 +104,33 @@ export function PatientDetailClient({
         ))}
       </div>
 
-      {tab !== "dados" && (
+      {tab === "prontuario" && (
+        <>
+          {!clinicalRecordModuleEnabled ? (
+            <Card>
+              <p className="text-sm text-gray-500">
+                O módulo Prontuário Clínico não está habilitado para esta clínica.
+              </p>
+            </Card>
+          ) : !canViewRecords ? (
+            <Card>
+              <p className="text-sm text-gray-500">Você não tem permissão para ver o prontuário.</p>
+            </Card>
+          ) : (
+            <ClinicalRecordsTab
+              patientId={patient.id}
+              canEdit={canEditRecords}
+              canSign={canSignRecords}
+              initialRecords={initialClinicalRecords}
+            />
+          )}
+        </>
+      )}
+
+      {tab === "financeiro" && (
         <Card>
           <p className="text-sm text-gray-500">
-            Módulo de {TABS.find((t) => t.key === tab)?.label} ainda não implementado — planejado
-            para um sprint futuro (Prontuário Clínico / Financeiro por paciente).
+            Módulo Financeiro por paciente ainda não implementado — planejado para um sprint futuro.
           </p>
         </Card>
       )}

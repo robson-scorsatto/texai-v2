@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "./client";
-import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments } from "./schema";
+import { users, roles, permissions, rolePermissions, modules, memberships, patients, appointments, clinicalRecords } from "./schema";
 import { ALL_PERMISSIONS } from "./seed-data/permissions";
 import { MODULE_CATALOG } from "./seed-data/modules";
 import { ROLE_PERMISSION_KEYS } from "./seed-data/roles";
@@ -297,6 +297,67 @@ async function main() {
         notes: fa.notes,
         isDevSeedData: true,
         createdByUserId: admin.id,
+      });
+    }
+  }
+
+  console.log("→ Seeding fictitious clinical records (isDevSeedData = true)...");
+  if (profIngrid) {
+    const anaId = patientByName("Ana Beatriz Souza (dev)");
+    const carlosId = patientByName("Carlos Eduardo Lima (dev)");
+
+    const fakeRecords: Array<{
+      patientId: string | undefined;
+      recordType: "evolucao" | "anamnese" | "procedimento";
+      content: string;
+      signed: boolean;
+    }> = [
+      {
+        patientId: anaId,
+        recordType: "anamnese",
+        content:
+          "Anamnese fictícia de desenvolvimento — paciente sem histórico de alergias relevantes, nega uso de medicação contínua.",
+        signed: true,
+      },
+      {
+        patientId: anaId,
+        recordType: "evolucao",
+        content: "Evolução fictícia de desenvolvimento — retorno de rotina, sem queixas.",
+        signed: false,
+      },
+      {
+        patientId: carlosId,
+        recordType: "procedimento",
+        content: "Procedimento fictício de desenvolvimento — profilaxia realizada sem intercorrências.",
+        signed: true,
+      },
+    ];
+
+    for (const fr of fakeRecords) {
+      if (!fr.patientId) continue;
+
+      const [existing] = await db
+        .select({ id: clinicalRecords.id })
+        .from(clinicalRecords)
+        .where(
+          and(
+            eq(clinicalRecords.clinicId, clinic.id),
+            eq(clinicalRecords.patientId, fr.patientId),
+            eq(clinicalRecords.content, fr.content)
+          )
+        )
+        .limit(1);
+      if (existing) continue;
+
+      await db.insert(clinicalRecords).values({
+        clinicId: clinic.id,
+        patientId: fr.patientId,
+        authorUserId: profIngrid,
+        recordType: fr.recordType,
+        content: fr.content,
+        signedAt: fr.signed ? new Date() : null,
+        signedByUserId: fr.signed ? profIngrid : null,
+        isDevSeedData: true,
       });
     }
   }

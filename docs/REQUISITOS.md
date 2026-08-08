@@ -88,3 +88,23 @@ Ao escrever os testes de conflito de horário e o seed de agendamentos, dois pro
 - `createClinic()` (Sprint 0) não deduplica por nome — reexecutar `npm run db:seed` em um banco de dev já semeado cria uma nova clínica a cada vez, em vez de reaproveitar a existente. Não é um problema de segurança (cada clínica continua isolada corretamente), mas é um incômodo operacional para quem já rodou o seed antes; recomenda-se `rm -rf .data && npm run db:migrate && npm run db:seed` para um ambiente de dev limpo. Deixado como pendência para não expandir o escopo desta sprint.
 - Catálogo de serviços (`serviceName` é hoje texto livre) e associação de agendamento a um serviço com preço/duração padrão ficam para sprint futura (Financeiro/Serviços).
 - Notificação automática de confirmação via WhatsApp (já mapeada como ponto forte da plataforma legada na Auditoria 01) ainda não está conectada — pertence ao módulo WHATSAPP/AUTOMATIONS, fora do escopo desta sprint.
+
+## Sprint 8 — Módulo Prontuário Clínico
+
+Terceiro módulo de negócio real, conectando Pacientes (Sprint 6) e Agenda (Sprint 7) — implementado como uma nova aba dentro da ficha do paciente, substituindo o placeholder que existia desde o Sprint 6. Referência: `TEXAI 2.0 — MASTER DEVELOPMENT PROMPT`, roadmap de sprints.
+
+| # | Requisito | Implementação | Status | Teste |
+|---|---|---|---|---|
+| 1 | Schema de Prontuário (tenant-scoped) | `src/db/schema/clinical-records.ts` — `clinicId` e `patientId` obrigatórios, `appointmentId` opcional (vincula a entrada a um atendimento), `recordType` (evolução/anamnese/procedimento), `signedAt`/`signedByUserId` para o mecanismo de imutabilidade, índice composto `(clinicId, patientId)` | ✅ Feito | Migration `drizzle/0003_melted_zarek.sql` aplicada com sucesso |
+| 2 | Service layer tenant-safe + imutabilidade após assinatura | `src/lib/clinical-records/clinical-records-service.ts` — `listClinicalRecords`, `getClinicalRecord`, `createClinicalRecord`, `updateClinicalRecord`, `signClinicalRecord`. Uma entrada assinada nunca pode ser editada (só uma nova entrada pode ser adicionada) — reflete prática clínica/legal real; validação de que `patientId`/`appointmentId` pertencem à clínica atual | ✅ Feito | `tests/clinical-records.test.ts` — blocos "service layer CRUD" e "signature immutability" (6 casos) |
+| 3 | Server actions + gates de módulo/permissão | `src/app/actions/clinical-records-actions.ts` — `requireModule('CLINICAL_RECORD')` + `requirePermission('clinical_record.view/edit/sign')` conforme a ação | ✅ Feito | `tests/clinical-records.test.ts` — blocos "cross-tenant isolation" e "RBAC enforcement" |
+| 4 | UI — aba Prontuário na ficha do paciente | Aba "Prontuário" em `/patients/[id]` agora renderiza uma timeline real (`clinical-records-tab.tsx`): nova entrada, edição de rascunhos, indicação visual de assinado (imutável, verde) vs rascunho (amarelo), botão Assinar | ✅ Feito | Verificado via `next build`; sem E2E de navegador nesta sessão |
+| 5 | Seed de entradas fictícias | `src/db/seed.ts` — 3 entradas fictícias (1 anamnese assinada, 1 evolução em rascunho, 1 procedimento assinado) vinculadas aos pacientes/profissional fictícios já semeados, `isDevSeedData: true`, idempotente | ✅ Feito | `npm run db:seed` executado com sucesso; verificado manualmente que os 3 registros existem e só na clínica de dev |
+| 6 | Testes — CRUD, imutabilidade, permissões, cross-tenant | `tests/clinical-records.test.ts` (12 casos) | ✅ Feito | 51/51 testes passando no total (`npm run test`) |
+
+### Pendências conhecidas do Sprint 8
+
+- Odontograma / representação gráfica dente-a-dente (mapeado como funcionalidade forte da plataforma legada na Auditoria 01) não foi implementado — é um tipo de registro clínico especializado (módulo DENTAL) que fica para uma sprint futura, construído sobre esta mesma tabela `clinical_records` ou uma tabela companion.
+- Modelos de anamnese configuráveis (formulário estruturado, não texto livre) ficam para sprint futura — hoje `content` é texto livre, suficiente para validar o fluxo core de timeline + assinatura.
+- Sem teste E2E de navegador para o formulário de nova entrada/assinatura (mesma lacuna estrutural documentada nos Sprints 0, 6 e 7).
+- Mesma pendência operacional do Sprint 7 sobre `createClinic()` não deduplicar por nome ao reexecutar `npm run db:seed` em um banco já semeado.

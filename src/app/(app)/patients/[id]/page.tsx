@@ -5,6 +5,7 @@ import { resolveTenantContext } from "@/lib/tenant/resolve-tenant";
 import { hasModule } from "@/lib/entitlements/modules";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { getPatient } from "@/lib/patients/patients-service";
+import { listClinicalRecords } from "@/lib/clinical-records/clinical-records-service";
 import { Card } from "@/components/ui/card";
 import { PatientDetailClient } from "./patient-detail-client";
 
@@ -53,6 +54,18 @@ export default async function PatientDetailPage({
     hasPermission("patients.delete"),
   ]);
 
+  const clinicalRecordModuleEnabled = await hasModule("CLINICAL_RECORD");
+  const [canViewRecords, canEditRecords, canSignRecords] = clinicalRecordModuleEnabled
+    ? await Promise.all([
+        hasPermission("clinical_record.view"),
+        hasPermission("clinical_record.edit"),
+        hasPermission("clinical_record.sign"),
+      ])
+    : [false, false, false];
+
+  const clinicalRecords =
+    clinicalRecordModuleEnabled && canViewRecords ? await listClinicalRecords(patient.id) : [];
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-200 bg-white px-6 py-4">
@@ -68,7 +81,16 @@ export default async function PatientDetailPage({
       </header>
 
       <div className="mx-auto max-w-3xl px-6 py-8">
-        <PatientDetailClient patient={patient} canEdit={canEdit} canDelete={canDelete} />
+        <PatientDetailClient
+          patient={patient}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          clinicalRecordModuleEnabled={clinicalRecordModuleEnabled}
+          canViewRecords={canViewRecords}
+          canEditRecords={canEditRecords}
+          canSignRecords={canSignRecords}
+          initialClinicalRecords={clinicalRecords}
+        />
       </div>
     </main>
   );
